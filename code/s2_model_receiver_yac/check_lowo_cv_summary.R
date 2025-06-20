@@ -5,14 +5,14 @@ library(cowplot)
 
 # Read in the RFCDE summary from python -----------------------------------
 
-lowo_summary <- 
-  read_csv("data/yac_model_output/lowo_validation/rfcde_feature_comparison.csv")
+lowo_summary <-
+  read_csv("data/yac_model_output/lowo_validation/rfcde_feature_comparison_revised.csv")
 
 # Display the test results ------------------------------------------------
 
-yac_metric_plot <- lowo_summary |>
+yac_metric_plot <- lowo_summary %>%
   pivot_longer(cols = cde_loss_val:cde_test_mode_rmse,
-               names_to = "metric", values_to = "value") |>
+               names_to = "metric", values_to = "value") %>%
   mutate(features = fct_relevel(features, "bc_qb_only",
                                 "bc_qb_def1", "bc_qb_def1_off1",
                                 "bc_qb_def12", "bc_qb_def12_off12"),
@@ -25,13 +25,13 @@ yac_metric_plot <- lowo_summary |>
          metric = fct_recode(metric,
                              `RMSE with mean` = "cde_test_mean_rmse",
                              `RMSE with mode` = "cde_test_mode_rmse",
-                             `CDE loss` = "cde_loss_val")) |>
-  group_by(features, metric) |>
+                             `CDE loss` = "cde_loss_val")) %>%
+  group_by(features, metric) %>%
   summarize(ave_val = mean(value),
             se_val = sd(value) / sqrt(n()),
-            .groups = "drop") |>
+            .groups = "drop") %>%
   mutate(lower_bound = ave_val - se_val,
-         upper_bound = ave_val + se_val) |>
+         upper_bound = ave_val + se_val) %>%
   ggplot(aes(x = features)) +
   geom_errorbar(aes(ymin = lower_bound, ymax = upper_bound),
                 color = "black") +
@@ -45,7 +45,7 @@ yac_metric_plot <- lowo_summary |>
         axis.text.x = element_text(size = 10, angle = 30),
         strip.text = element_text(size = 14))
 
-save_plot("figs/suppl_yac_lowocv.jpeg",
+save_plot("figures/suppl_yac_lowocv.jpeg",
           yac_metric_plot, ncol = 1, nrow = 3)
 
 

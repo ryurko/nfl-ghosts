@@ -1,8 +1,7 @@
-# PURPOSE: Compute difference between observed EPV with ghost EPV (negative is
-#          good for the side of defense)
+# Purpose: Compute the estimate for the expected delta difference with ghost
+#          distributions across every observed play
 
 library(tidyverse)
-
 
 # Proceed through each week to generate summary ---------------------------
 
@@ -10,31 +9,38 @@ play_level_summary <-
   map_dfr(1:17,
           function(week_i) {
 
-            #week_i <- 1
+            # First load CDE values
+            week_cde_vals <-
+              read_rds(paste0("data/ghost_location_model_output/at_catch_location_probs/week",
+                              week_i, ".rds"))
 
-            # First load the observed EPV summary:
+            # Next the ghost EPV values:
+            week_epv_vals <-
+              read_rds(paste0("data/ghost_ep_values/play_grid_sample_ep/week",
+                              week_i, ".rds"))
+
+            # Now the observed EPV values
             week_obs_epv <-
-              read_rds(paste0("data/ghost_ep_values/play_level_summary/observed_epv/week",
+              read_rds(paste0("data/ghost_ep_values/play_level_summary/observed_epv_new/week",
                               week_i, ".rds")) %>%
-              rename(obs_epv = ev_ep)
+              rename(obs_ep = ep)
 
-            # Load all of the play level files and compute the EPV:
-            week_ghost_epv <-
-              map_dfr(list.files(paste0("data/ghost_ep_values/clean_ghost_loc_distr/week",
-                                        week_i), full.names = TRUE),
-                      read_rds) %>%
+            week_epv_vals %>%
+              left_join(week_obs_epv, by = c("week_id", "game_play_id")) %>%
+              mutate(delta = obs_ep - ep) %>%
+              group_by(game_play_id, grid_x, grid_y) %>%
+              summarise(grid_delta = mean(delta),
+                        .groups = "drop") %>%
+              left_join(dplyr::select(week_cde_vals,
+                                      game_play_id,
+                                      grid_x, grid_y, pred_prob),
+                        by = c("game_play_id", "grid_x", "grid_y")) %>%
               group_by(game_play_id) %>%
-              summarize(ghost_epv = sum(ev_ep * cond_pred_prob),
-                        .groups = "drop")
-
-            # Join together and compute the difference to return:
-            week_obs_epv %>%
-              dplyr::left_join(week_ghost_epv, by = "game_play_id") %>%
-              mutate(change_epv = obs_epv - ghost_epv)
+              summarize(epv_delta = sum(grid_delta * pred_prob),
+                        .groups = "drop") %>%
+              mutate(week_id = week_i)
 
           })
-
-# There's one play with missing ghost right now... just ignore for ease
 
 # Get info on the players in these plays ----------------------------------
 
@@ -76,6 +82,4 @@ play_level_summary <- play_level_summary %>%
 
 # Save this file:
 write_csv(play_level_summary,
-          "data/ghost_ep_values/play_level_summary/play_summary_table.csv")
-
-
+          "data/ghost_ep_values/play_level_summary/epv_diff_play_summary_table.csv")
